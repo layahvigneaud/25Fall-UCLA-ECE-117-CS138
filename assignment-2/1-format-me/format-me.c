@@ -4,6 +4,7 @@
 #include <time.h>
 #include <unistd.h>
 
+
 void print_flag() {
     setuid(0);
     char flag[64];

